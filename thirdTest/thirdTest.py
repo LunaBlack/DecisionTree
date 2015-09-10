@@ -29,24 +29,25 @@ def get_labels(train_file):
 
 # 返回dataset(即数据的列表集合)和features(即特征的列表)
 def format_data(dataset_file):
-    dataset = []
-    for index, line in enumerate(open(dataset_file,'rU').readlines()):
-        line = line.strip()
-        fea_and_label = line.split(',')
-        dataset.append([float(fea_and_label[i]) for i in range(len(fea_and_label)-1)]+[fea_and_label[len(fea_and_label)-1]])
-    #features = [dataset[0][i] for i in range(len(dataset[0])-1)]
     #sepal length（花萼长度）、sepal width（花萼宽度）、petal length（花瓣长度）、petal width（花瓣宽度）
     features = ['sepal_length','sepal_width','petal_length','petal_width']
-    return dataset,features
+    dataset = []
+    f = open(dataset_file, 'r')
+    while(1):
+        line = f.readline().strip()
+        if not line:
+            break
+        fea_and_label = line.split(',')
+        dataset.append([float(fea_and_label[i]) for i in range(len(fea_and_label)-1)]+[fea_and_label[len(fea_and_label)-1]])
+    return dataset, features
 
-def split_dataset(dataset,feature_index,labels):
-    '''
-    按指定feature划分数据集，返回四个列表:
-    @dataset_less:指定特征项的属性值＜=该特征项平均值的子数据集
-    @dataset_greater:指定特征项的属性值＞该特征项平均值的子数据集
-    @label_less:按指定特征项的属性值＜=该特征项平均值切割后子标签集
-    @label_greater:按指定特征项的属性值＞该特征项平均值切割后子标签集
-    '''
+
+# 按指定feature划分数据集，返回四个列表:
+# @dataset_less:指定特征项的属性值＜=该特征项平均值的子数据集
+# @dataset_greater:指定特征项的属性值＞该特征项平均值的子数据集
+# @label_less:按指定特征项的属性值＜=该特征项平均值切割后子标签集
+# @label_greater:按指定特征项的属性值＞该特征项平均值切割后子标签集
+def split_dataset(dataset, feature_index, labels):
     dataset_less = []
     dataset_greater = []
     label_less = []
@@ -54,20 +55,19 @@ def split_dataset(dataset,feature_index,labels):
     datasets = []
     for data in dataset:
         datasets.append(data[0:4])
-    mean_value = mean(datasets,axis = 0)[feature_index]   #数据集在该特征项的所有取值的平均值
+    mean_value = mean(datasets, axis = 0)[feature_index]   #数据集在该特征项的所有取值的平均值
     for data in dataset:
-            if data[feature_index] > mean_value:
-                dataset_greater.append(data)
-                label_greater.append(data[-1])
-            else:
-                dataset_less.append(data)
-                label_less.append(data[-1])
-    return dataset_less,dataset_greater,label_less,label_greater
+         if data[feature_index] > mean_value:
+             dataset_greater.append(data)
+             label_greater.append(data[-1])
+         else:
+             dataset_less.append(data)
+             label_less.append(data[-1])
+    return dataset_less, dataset_greater, label_less, label_greater
 
+
+# 计算数据集的熵大小
 def cal_entropy(dataset):
-    '''
-    计算数据集的熵大小
-    '''
     n = len(dataset)
     label_count = {}
     for data in dataset:
@@ -79,16 +79,15 @@ def cal_entropy(dataset):
     entropy = 0
     for label in label_count:
         prob = float(label_count[label])/n
-        entropy -= prob*log(prob,2)
-    #print 'entropy:',entropy
+        entropy -= prob * log(prob,2)
+    #print 'entropy:', entropy
     return entropy
 
+
+# 计算指定特征对数据集的信息增益值
+# g(D,F) = H(D)-H(D/F) = entropy(dataset) - sum{1,k}(len(sub_dataset)/len(dataset))*entropy(sub_dataset)
+# base_entropy = H(D)
 def cal_info_gain(dataset,feature_index,base_entropy):
-    '''
-    计算指定特征对数据集的信息增益值
-    g(D,F) = H(D)-H(D/F) = entropy(dataset) - sum{1,k}(len(sub_dataset)/len(dataset))*entropy(sub_dataset)
-    @base_entropy = H(D)
-    '''
     datasets = []
     for data in dataset:
         datasets.append(data[0:4])
