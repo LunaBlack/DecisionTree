@@ -10,6 +10,8 @@
 
 from math import log
 import operator
+
+
 #计算给定数据集的香农熵
 def calcShannonEnt(dataSet):
     numEntries = len(dataSet)
@@ -18,21 +20,18 @@ def calcShannonEnt(dataSet):
         currentLabel = featVec[-1]
         if currentLabel not in labelCounts.keys():
             labelCounts[currentLabel] = 0
-
         labelCounts[currentLabel] += 1
-
     shannonEnt = 0.0
     for key in labelCounts:
         prob = float(labelCounts[key])/numEntries
         shannonEnt -= prob*log(prob,2)
-
     return shannonEnt
 
 #按照给定特征划分数据集
 #dataSet：待划分的数据集
 #axis：划分数据集的特征--数据的第几列
 #value：需要返回的特征值
-def splitDataSet(dataSet,axis,value):
+def splitDataSet(dataSet, axis, value):
     retDataSet = []
     for featVec in dataSet:
         if featVec[axis] == value:
@@ -59,13 +58,14 @@ def chooseBestFeatureToSplit(dataSet):
             bestInfoGain = infoGain
             bestFeature = i
     return bestFeature
-#
+
+#该函数用于找出出现次数最多的分类名称
 def majorityCnt(classList):
     classCount = {}
     for vote in classList:
         if vote not in classCount.keys():classCount[vote] = 0
         classCount[vote] += 1
-    sortedClassCount = sorted(classList.iteritems(),key=operator.itemgetter(1),reverse=True)#利用operator操作键值排序字典
+    sortedClassCount = sorted(classList.iteritems(), key=operator.itemgetter(1), reverse=True)   #利用operator操作键值排序字典
     return sortedClassCount[0][0]
 
 #创建树的函数
@@ -84,25 +84,23 @@ def createTree(dataSet,labels):
     for value in uniqueVals:
         subLabels = labels[:]
         myTree[bestFeatLabel][value] = createTree(splitDataSet(dataSet, bestFeat, value), subLabels)
-
     return myTree
 
 #创建数据集
 def createDataSetFromTXT(filename):
-    dataSet = []; labels = []
+    dataSet = []
+    labels = []
     fr = open(filename)
-    linenumber=0
+    linenumber = 0
     for line in fr.readlines():
         line = line.strip()
         listFromLine = line.strip().split()
         lineset = []
         for cel in listFromLine:
             lineset.append(cel)
-
         if(linenumber==0):
             labels=lineset
         else:
             dataSet.append(lineset)
-
         linenumber = linenumber+1
     return dataSet,labels
