@@ -17,10 +17,10 @@ if __name__ == '__main__':
     print 'splitGroup', len(splitGroup), splitGroup
     test= range(4)
     splitGroup = featuresplit(test)
-    print 'splitGroup', len(splitGroup),splitGroup
+    print 'splitGroup', len(splitGroup), splitGroup
     test= range(5)
     splitGroup = featuresplit(test)
-    print 'splitGroup', len(splitGroup),splitGroup
+    print 'splitGroup', len(splitGroup), splitGroup
     test= ['young','middle','old']
     splitGroup = featuresplit(test)
-    print 'splitGroup', len(splitGroup),splitGroup
+    print 'splitGroup', len(splitGroup), splitGroup
