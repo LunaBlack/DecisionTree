@@ -53,28 +53,36 @@ def createDataSet():
 def createDataSetFromTXT(filename):
     dataSet = []
     labels = []
-    fr = open(filename)
+    fr = open(filename, 'r')
     linenumber = 0
     for line in fr.readlines():
         line = line.strip()
-        listFromLine = line.strip().split()
+        listFromLine = line.strip().split(',')
         lineset = []
-        for cel in listFromLine:
-            lineset.append(cel)
-
-        if(linenumber==0):
-            labels=lineset
+        for each in listFromLine:
+            if type(each) == str:
+                try:
+                    each = float(each)
+                except:
+                    pass
+            lineset.append(each)
+        if linenumber == 0:
+            labels = lineset
         else:
             dataSet.append(lineset)
-
-        linenumber = linenumber+1
+        linenumber = linenumber + 1
     return dataSet, labels
 
 
 # 在给定特征和特征值的情况下，通过数组过滤的方式将数据集切分得到的两个子集返回
 def binSplitDataSet(dataSet, feature, value):
-    mat0 = dataSet[nonzero(dataSet[:,feature] > value)[0],:][0]
-    mat1 = dataSet[nonzero(dataSet[:,feature] <= value)[0],:][0]
+    mat0 = []
+    mat1 = []
+    for each in dataSet:
+        if each[feature] > value:
+            mat0.append(each)
+        elif each[feature] <= value:
+            mat1.append(each)
     return mat0, mat1
 
 
@@ -120,7 +128,7 @@ def splitDataSet(dataSet, axis, valueTuple):
 def chooseBestSplit0(dataSet, axis, values):
     newGiniGain = 0.0
     for value in values:
-        subDataSet = splitDataSet(dataSet, axis , value)
+        subDataSet = splitDataSet(dataSet, axis , [value])
         prob = len(subDataSet)/float(len(dataSet))
         newGiniGain +=prob * calcGini(subDataSet)
     return newGiniGain
@@ -135,7 +143,10 @@ def chooseBestSplit1(dataSet, axis, values):
     for each in featuresplitGroup:
         newGiniGain = 0.0
         for value in each:
-            subDataSet = splitDataSet(dataSet, axis , value)
+            if len(value) == 1:
+                subDataSet = splitDataSet(dataSet, axis , [value])
+            else:
+                subDataSet = splitDataSet(dataSet, axis , value)
             prob = len(subDataSet)/float(len(dataSet))
             newGiniGain +=prob * calcGini(subDataSet)
         if newGiniGain < bestGiniGain:
@@ -151,12 +162,10 @@ def chooseBestSplit2(dataSet, axis, values):
     for value in values:
         newGiniGain = 0.0
         mat0, mat1 = binSplitDataSet(dataSet, axis, value)
-        subDataSet0 = splitDataSet(mat0, axis , value)
-        prob = len(subDataSet0)/float(len(dataSet))
-        newGiniGain +=prob * calcGini(subDataSet0)
-        subDataSet1 = splitDataSet(mat0, axis , value)
-        prob = len(subDataSet1)/float(len(dataSet))
-        newGiniGain +=prob * calcGini(subDataSet1)
+        prob = len(mat0)/float(len(dataSet))
+        newGiniGain +=prob * calcGini(mat0)
+        prob = len(mat1)/float(len(dataSet))
+        newGiniGain +=prob * calcGini(mat1)
         if newGiniGain < bestGiniGain:
             bestGiniGain = newGiniGain
             bestValue = value
@@ -176,7 +185,7 @@ def chooseBestFeatureToSplit(dataSet):
     featureSplitList = []
     for i in range(numFeatures):
         featList = [example[i] for example in dataSet]
-        uniqueVals = set(featList)
+        uniqueVals = list(set(featList))
         flag = 0
         if len(uniqueVals) > 6:   #取值多于6个，判断为连续特征
             newGiniGain, newSplitValue = chooseBestSplit2(dataSet, i, uniqueVals)
@@ -228,15 +237,23 @@ def createTree(dataSet, labels):
     bestFeatLabel = labels[bestFeat]
     myTree = {bestFeatLabel:{}}
     if flag == 1:   #连续特征
-        pass
-# ------------------------------------------------ #
-# 尚未完成 #
-    #get the list which attain the whole properties
-    featValues = [example[bestFeat] for example in dataSet]
-    uniqueVals = set(featValues)
-    for value in uniqueVals:
+        mat0, mat1 = binSplitDataSet(dataSet, bestFeat, bestSplit)
+        myTree[bestFeatLabel]['>%f' % bestSplit] = createTree(mat0, labels)
+        myTree[bestFeatLabel]['<=%f' % bestSplit] = createTree(mat1, labels)
+    elif flag == 2:   #只有两个取值的离散特征
+        del(labels[bestFeat])
         subLabels = labels[:]
-        myTree[bestFeatLabel][value] = createTree(splitDataSet(dataSet, bestFeat, value), subLabels)
+        myTree[bestFeatLabel][bestSplit[0]] = createTree(splitDataSet(dataSet, bestFeat, [bestSplit[0]]), subLabels)
+        myTree[bestFeatLabel][bestSplit[1]] = createTree(splitDataSet(dataSet, bestFeat, [bestSplit[1]]), subLabels)
+    elif flag == 3:   #至少三个取值的离散特征
+        for i in bestSplit:
+            if len(i) == 1:
+                subLabels = labels[:]
+                subLabels.pop(bestFeat)
+                myTree[bestFeatLabel][i] = createTree(splitDataSet(dataSet, bestFeat, i), subLabels)
+            elif len(i) > 1:
+                subLabels = labels[:]
+                myTree[bestFeatLabel][i] = createTree(splitDataSet(dataSet, bestFeat, i), subLabels)
     return myTree
 
 
@@ -246,15 +263,58 @@ def classify(inputTree, featLabels, testVec):
     secondDict = inputTree[firstStr]
     featIndex = featLabels.index(firstStr)
     for key in secondDict.keys():
-        if testVec[featIndex] == key:
-            if type(secondDict[key]).__name__ == 'dict':
-                classLabel = classify(secondDict[key], featLabels, testVec)
-            else: classLabel = secondDict[key]
+        if type(key) == str and key.startswith('>'):
+            value = float(key[1:])
+            if testVec[featIndex] > value:
+                if type(secondDict[key]).__name__ == 'dict':
+                    classLabel = classify(secondDict[key], featLabels, testVec)
+                else:
+                    classLabel = secondDict[key]
+        elif type(key) == str and key.startswith('<='):
+            value = float(key[2:])
+            if testVec[featIndex] <= value:
+                if type(secondDict[key]).__name__ == 'dict':
+                    classLabel = classify(secondDict[key], featLabels, testVec)
+                else:
+                    classLabel = secondDict[key]
+        elif type(key) == int:
+            if testVec[featIndex] == key:
+                if type(secondDict[key]).__name__ == 'dict':
+                    classLabel = classify(secondDict[key], featLabels, testVec)
+                else:
+                    classLabel = secondDict[key]
+        elif type(key) == tuple:
+            if testVec[featIndex] in key:
+                if type(secondDict[key]).__name__ == 'dict':
+                    classLabel = classify(secondDict[key], featLabels, testVec)
+                else:
+                    classLabel = secondDict[key]
     return classLabel
+
+
+# 主函数
+def run(train_file, test_file):
+    train_dataset, myLabels = createDataSetFromTXT(train_file)
+    labels = []
+    for each in myLabels:
+        labels.append(each)
+    decesion_tree = createTree(train_dataset, labels)
+    print 'decesion_tree :', decesion_tree
+
+    test_dataset, testLabels = createDataSetFromTXT(test_file)
+    n = len(test_dataset)
+    correct = 0
+    for test_data in test_dataset:
+        label = classify(decesion_tree, myLabels, test_data[:-1])
+        if label == test_data[-1]:
+            correct += 1
+    print "准确率: ".decode('utf8'), correct/float(n)
 
 
 
 if __name__ == '__main__':
+    run('irisTrain.txt', 'irisTest.txt')
+
     myDat, myLabels = createDataSet()
 
     labels = []    # 该处有修改，为了避免createTree函数对labels的修改
