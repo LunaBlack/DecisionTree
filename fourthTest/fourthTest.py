@@ -10,14 +10,12 @@
 
 
 
+import string
 import math
 import operator
 from itertools import *
 from numpy import *
 
-
-# 取置信水平为0.95时的卡方表
-CHI = {0.004,0.103,0.352,0.711,1.145,1.635,2.167,2.733,3.325,3.94,4.575,5.226,5.892,6.571,7.261,7.962}
 
 
 # 该函数计算给定Gini：Gini越大，信息越不容易搞清楚
@@ -227,12 +225,12 @@ def majorityCnt(classList):
 # 该函数递归地创建树
 def createTree(dataSet, labels):
     classList = [example[-1] for example in dataSet]
-    # the type is the same, so stop classify
-    if classList.count(classList[0]) == len(classList):
+    if classList.count(classList[0]) == len(classList):   #属于同一类
         return classList[0]
-    # traversal all the features and choose the most frequent feature
-    if (len(dataSet[0]) == 1):
+    if (len(dataSet[0]) == 1):   #只有一个特征
         return majorityCnt(classList)
+    # if len(dataSet) < 5:    #待划分的样本个数小于阈值5
+    #     return majorityCnt(classList)
     flag, bestFeat, bestSplit = chooseBestFeatureToSplit(dataSet)
     bestFeatLabel = labels[bestFeat]
     myTree = {bestFeatLabel:{}}
@@ -257,6 +255,170 @@ def createTree(dataSet, labels):
     return myTree
 
 
+# 计算非叶节点的子树误差代价
+def culSubErr(inputTree, n, leaf, subErr, dataSet, featLabels):
+    firstStr = inputTree.keys()[0]
+    secondDict = inputTree[firstStr]
+    featIndex = featLabels.index(firstStr)
+    for key in secondDict.keys():
+        if type(key) == str and key.startswith('>'):
+            value = float(key[1:])
+            mat0, mat1 = binSplitDataSet(dataSet, featIndex, value)
+            if type(secondDict[key]).__name__ == 'dict':
+                subErr, leaf = culSubErr(secondDict[key], n, leaf, subErr, mat0, featLabels)
+            else:
+                leaf += 1    #叶节点
+                if len(mat0) < len(mat1):
+                    print '1'
+                    subErr += len(mat0)/float(n)
+                else:
+                    pass
+        elif type(key) == str and key.startswith('<='):
+            value = float(key[2:])
+            mat0, mat1 = binSplitDataSet(dataSet, featIndex, value)
+            if type(secondDict[key]).__name__ == 'dict':
+                subErr, leaf = culSubErr(secondDict[key], n, leaf, subErr, mat0, featLabels)
+            else:
+                leaf += 1    #叶节点
+                if len(mat0) < len(mat1):
+                    pass
+                else:
+                    print '2'
+                    subErr += len(mat1)/float(n)
+        elif type(key) == int or type(key) == float:
+            value = key
+            subDataSet = splitDataSet(dataSet, featIndex, [value])
+            if type(secondDict[key]).__name__ == 'dict':
+                subErr, leaf = culSubErr(secondDict[key], n, leaf, subErr, subDataSet, featLabels)
+            else:
+                leaf += 1    #叶节点
+                if len(subDataSet) < (len(dataSet) - len(subDataSet)):
+                    subErr += len(subDataSet)/float(n)
+                    print '3'
+                else:
+                    pass
+        elif type(key) == tuple:
+            value = key
+            subDataSet = splitDataSet(dataSet, featIndex, value)
+            if type(secondDict[key]).__name__ == 'dict':
+                subErr, leaf = culSubErr(secondDict[key], n, leaf, subErr, subDataSet, featLabels)
+            else:
+                leaf += 1    #叶节点
+                if len(subDataSet) < (len(dataSet) - len(subDataSet)):
+                    print '4'
+                    subErr += len(subDataSet)/float(n)
+                else:
+                    pass
+    print subErr, leaf
+    return subErr, leaf
+
+
+# 计算非叶节点的误差代价
+def culErr(inputTree, n, dataSet, featLabels):
+    firstStr = inputTree.keys()[0]
+    secondDict = inputTree[firstStr]
+    featIndex = featLabels.index(firstStr)
+    for key in secondDict.keys():
+        if type(key) == str and key.startswith('>'):
+            value = float(key[1:])
+            mat0, mat1 = binSplitDataSet(dataSet, featIndex, value)
+            if len(mat0) < len(mat1):
+                err = len(mat0)/float(n)
+            else:
+                pass
+        elif type(key) == str and key.startswith('<='):
+            value = float(key[2:])
+            mat0, mat1 = binSplitDataSet(dataSet, featIndex, value)
+            if len(mat0) < len(mat1):
+                pass
+            else:
+                err = len(mat1)/float(n)
+        elif type(key) == int or type(key) == float:
+            value = key
+            subDataSet = splitDataSet(dataSet, featIndex, [value])
+            if len(subDataSet) < (len(dataSet) - len(subDataSet)):
+                err = len(subDataSet)/float(n)
+            else:
+                pass
+        elif type(key) == tuple:
+            value = key
+            subDataSet = splitDataSet(dataSet, featIndex, value)
+            if len(subDataSet) < (len(dataSet) - len(subDataSet)):
+                err = len(subDataSet)/float(n)
+            else:
+                pass
+    return err
+
+
+# 对于表面误差率增益值最小的非叶节点，去掉左右枝，使其为叶节点
+def delLeaf(inputTree, originTree, dataSet):
+    print inputTree
+    print originTree
+    treeStr = string.replace(str(originTree), str(inputTree)[((str(inputTree)).index(':'))+1:-1], '99999999')
+    newTree = eval(treeStr)
+    finalTree = eval(treeStr)
+    classList = [data[-1] for data in dataSet]
+    while(1):
+        flag = 0
+        feature = newTree.keys()[0]
+        newTree = newTree(feature)
+        for key in newTree.keys():
+            if type(newTree(key)) == dict:
+                newTree = newTree(key)
+                break
+            elif newTree(key) != 99999999:
+                continue
+            elif newTree(key) == 99999999:
+                flag = 1
+        if flag == 1:
+            label = majorityCnt(classList)
+            finalTree = string.replace(str(finalTree), '99999999', label)
+            finalTree = eval(finalTree)
+            return finalTree
+
+
+# 后剪枝，采用代价复杂性
+# 该函数计算表面误差率增益值最小的非叶节点
+def pruning(dataSet, inputTree, featLabels, n, bestLeaf, bestErrGain, originTree, bestTree):
+    subErr, leaf = culSubErr(inputTree, n, 0, 0, dataSet, featLabels)
+    err = culErr(inputTree, n, dataSet, featLabels)
+    errGain = (err - subErr)/float(leaf - 1)
+    print err, subErr, leaf, errGain
+    if errGain < bestErrGain:
+        bestErrGain = errGain
+        bestLeaf = leaf
+        bestTree = delLeaf(inputTree, originTree, dataSet)
+    elif errGain == bestErrGain:
+        if leaf > bestLeaf:
+            bestErrGain = errGain
+            bestLeaf = leaf
+            bestTree = delLeaf(inputTree, originTree, dataSet)
+    subTree = inputTree(inputTree.keys()[0])
+    featIndex = featLabels.index(inputTree.keys()[0])
+    for key in subTree.keys():
+        if type(key) == str and key.startswith('>'):
+            value = float(key[1:])
+            mat0, mat1 = binSplitDataSet(dataSet, featIndex, value)
+            if type(subTree[key]).__name__ == 'dict':
+                bestLeaf, bestErrGain, bestTree = pruning(mat0, subTree[key], featLabels, n, bestLeaf, bestErrGain, originTree, bestTree)
+        elif type(key) == str and key.startswith('<='):
+            value = float(key[2:])
+            mat0, mat1 = binSplitDataSet(dataSet, featIndex, value)
+            if type(subTree[key]).__name__ == 'dict':
+                bestLeaf, bestErrGain, bestTree = pruning(mat1, subTree[key], featLabels, n, bestLeaf, bestErrGain, originTree, bestTree)
+        elif type(key) == int or type(key) == float:
+            value = key
+            subDataSet = splitDataSet(dataSet, featIndex, [value])
+            if type(subTree[key]).__name__ == 'dict':
+                bestLeaf, bestErrGain, bestTree = pruning(subDataSet, subTree[key], featLabels, n, bestLeaf, bestErrGain, originTree, bestTree)
+        elif type(key) == tuple:
+            value = key
+            subDataSet = splitDataSet(dataSet, featIndex, value)
+            if type(subTree[key]).__name__ == 'dict':
+                bestLeaf, bestErrGain, bestTree = pruning(subDataSet, subTree[key], featLabels, n, bestLeaf, bestErrGain, originTree, bestTree)
+    return bestLeaf, bestErrGain, bestTree
+
+
 # 该函数用已建好的决策树进行分类
 def classify(inputTree, featLabels, testVec):
     firstStr = inputTree.keys()[0]
@@ -277,7 +439,7 @@ def classify(inputTree, featLabels, testVec):
                     classLabel = classify(secondDict[key], featLabels, testVec)
                 else:
                     classLabel = secondDict[key]
-        elif type(key) == int:
+        elif type(key) == int or type(key) == float:
             if testVec[featIndex] == key:
                 if type(secondDict[key]).__name__ == 'dict':
                     classLabel = classify(secondDict[key], featLabels, testVec)
@@ -298,14 +460,17 @@ def run(train_file, test_file):
     labels = []
     for each in myLabels:
         labels.append(each)
-    decesion_tree = createTree(train_dataset, labels)
-    print 'decesion_tree :', decesion_tree
+    firstTree = createTree(train_dataset, labels)
+    print firstTree
+    # leaf, errGain, finalTree = pruning(train_dataset, firstTree, myLabels, len(train_dataset), 0, 1.0, firstTree, {})
+    leaf, errGain, finalTree = pruning(train_dataset, firstTree, myLabels, 1, 0, 1.0, firstTree, {})
+    print 'decesion_tree :', finalTree
 
     test_dataset, testLabels = createDataSetFromTXT(test_file)
     n = len(test_dataset)
     correct = 0
     for test_data in test_dataset:
-        label = classify(decesion_tree, myLabels, test_data[:-1])
+        label = classify(finalTree, myLabels, test_data[:-1])
         if label == test_data[-1]:
             correct += 1
     print "准确率: ".decode('utf8'), correct/float(n)
@@ -317,7 +482,7 @@ if __name__ == '__main__':
 
     myDat, myLabels = createDataSet()
 
-    labels = []    # 该处有修改，为了避免createTree函数对labels的修改
+    labels = []
     for each in myLabels:
         labels.append(each)
 
