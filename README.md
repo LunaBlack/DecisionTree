@@ -16,4 +16,7 @@ secondTest是ID3算法的实现，并用matplotlib库实现图形化（仅验证
 
 thirdTest是C4.5算法的实现.
 
-fourthTest是CART算法的实现（尚未完成）.
+fourthTest是CART算法（分类）的实现（尚未完成）.
+
+fifthTest是CART算法（回归）的实现.
+
