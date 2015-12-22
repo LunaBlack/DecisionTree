@@ -7,7 +7,7 @@
 # 算法思想参考2：http://blog.csdn.net/suipingsp/article/details/42264413
 # 数据集为鸢尾花数据集（部分）
 
-# 该代码尚未剪枝，研究中……
+# 该代码已实现剪枝，但部分未完善
 
 
 
@@ -16,6 +16,8 @@ import math
 import operator
 from itertools import *
 from numpy import *
+from treePlotter import createPlot
+from pprint import pprint
 
 
 
@@ -291,14 +293,161 @@ def classify(inputTree, featLabels, testVec):
     return classLabel
 
 
+class Node():
+    def __init__(self, dictitem, featLabels):
+        if isinstance(dictitem, dict):
+            self.isLeaf = False
+            self.featLabel, b = dictitem.items()[0]
+            self.featIndex = featLabels.index(self.featLabel)
+            self.condition = ''
+            pre = True
+            for condition, d in b.items():
+                self.condition += str(condition)
+                if isinstance(condition, tuple):
+                    if pre:
+                        leftcondition = condition
+                        self.leftsatisfy = lambda x: x[self.featIndex] in leftcondition
+                        self.leftNode = Node(d, featLabels)
+                    else:
+                        rightcondition = condition
+                        self.rightsatisfy = lambda x: x[self.featIndex] in rightcondition
+                        self.rightNode = Node(d, featLabels)
+
+                elif isinstance(condition, str):
+                    if condition.startswith('<='):
+                        thre = float(condition[2:])
+                        if pre:
+                            self.leftsatisfy = lambda x: x[self.featIndex] <= thre
+                            self.leftNode = Node(d, featLabels)
+                        else:
+                            self.rightsatisfy = lambda x: x[self.featIndex] <= thre
+                            self.rightNode = Node(d, featLabels)
+                    elif condition.startswith('>'):
+                        thre = float(condition[1:])
+                        if pre:
+                            self.leftsatisfy = lambda x: x[self.featIndex] > thre
+                            self.leftNode = Node(d, featLabels)
+                        else:
+                            self.rightsatisfy = lambda x: x[self.featIndex] > thre
+                            self.rightNode = Node(d, featLabels)
+                pre = False
+            self.leftNode.setParent(self)
+            self.rightNode.setParent(self)
+
+        else:
+            self.isLeaf = True
+            self.classresult = dictitem
+
+        self.nleft = 0
+        self.nright = 0
+
+        self.alpha = 0
+
+    def setParent(self, parent):
+        self.parent = parent
+
+    def classify(self, dataset):
+        leftSet = []
+        rightSet = []
+
+        for e in dataset:
+            if self.leftsatisfy(e):
+                leftSet.append(e)
+                self.nleft += 1
+            elif self.rightsatisfy(e):
+                rightSet.append(e)
+                self.nright += 1
+            else:
+                print(self.condition)
+                import ipdb; ipdb.set_trace()
+                print("!"*10, e)
+
+        print(self.condition, self.nleft, self.nright)
+
+        if self.leftNode.isLeaf == False:
+            self.leftNode.classify(leftSet)
+        else:
+            print(self.leftNode.classresult, self.nleft)
+            for e in leftSet:
+                # assert e[-1] == self.leftNode.classresult
+                if e[-1] != self.leftNode.classresult:
+                    print(e, self.leftNode.classresult)
+
+        if self.rightNode.isLeaf == False:
+            self.rightNode.classify(rightSet)
+        else:
+            print(self.rightNode.classresult, self.nright)
+            for e in rightSet:
+                # assert e[-1] == self.rightNode.classresult
+                if e[-1] != self.rightNode.classresult:
+                    print(e, self.rightNode.classresult)
+
+    def calcuAlpha(self, totalNumber):
+        if self.isLeaf:
+            return 0, 1
+        else:
+            lalpha2, lsize = self.leftNode.calcuAlpha(totalNumber)
+            ralpha2, rsize = self.rightNode.calcuAlpha(totalNumber)
+            self.leafsize = lsize + rsize
+
+            self.alpha = (min(self.nleft, self.nright)/float(totalNumber) - lalpha2 - ralpha2) \
+                    /(lsize + rsize -1)
+            print(self.alpha)
+            return (lalpha2 + ralpha2), (lsize + rsize)
+
+
+def pruning(tree, number):
+    root = tree
+
+    while number:
+        number -= 1
+
+        s = []
+        minalpha = 1
+        minNode = root
+
+        while not root.isLeaf or s:
+            if root.isLeaf:
+                root = s.pop()
+                root = root.rightNode
+            else:
+                if root.alpha < minalpha or (root.alpha == minalpha and root.leafsize < minNode.leafsize):
+                    minNode = root
+                    minalpha = minNode.alpha
+                s.append(root)
+                root = root.leftNode
+
+        print("will prune node", minNode.condition)
+        minNode.isLeaf = True
+        minNode.leftNode = None
+        minNode.rightNode = None
+
+        # tree.calcuAlpha()
+
+
 # 主函数
 def run(train_file, test_file):
     train_dataset, myLabels = createDataSetFromTXT(train_file)
+    # import ipdb; ipdb.set_trace()
+
     labels = []
     for each in myLabels:
         labels.append(each)
     decisionTree = createTree(train_dataset, labels)
-    print 'decisionTree :', decisionTree
+    print 'decisionTree :'
+    pprint(decisionTree)
+
+    # createPlot(decisionTree)
+
+    # leaf, errGain, finalTree = pruning(train_dataset, decisionTree, myLabels)
+
+    newTree = Node(decisionTree, myLabels)
+    newTree.classify(train_dataset)
+    newTree.calcuAlpha(len(train_dataset))
+
+    pruning(newTree, 1)
+
+    # newTree.classify(train_dataset)  # 剪枝后的树
 
     test_dataset, testLabels = createDataSetFromTXT(test_file)
     n = len(test_dataset)
@@ -326,3 +475,4 @@ if __name__ == '__main__':
     print classify(myTree, myLabels, [1,0])
     print classify(myTree, myLabels, [0,0])
     print classify(myTree, myLabels, [1,1])
+
